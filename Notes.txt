@@ -1,0 +1,11 @@
+2024-07-16
+
+TypeScript dev server
+- ts-node-dev is deprecated and doesn't work with the latest TypeScript.
+- The modern replacement is tsx. Use this script:
+    tsx watch src/server.ts
+
+Port 403 error
+- A port like 5000 can return a 403 in the browser (cause unclear — the port
+  may be blocked/reserved).
+- Switching to a different port (e.g. 2000) fixes it.
