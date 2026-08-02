@@ -1,4 +1,4 @@
-2024-07-16
+2026-07-16
 
 TypeScript dev server
 - ts-node-dev is deprecated and doesn't work with the latest TypeScript.
@@ -9,3 +9,52 @@ Port 403 error
 - A port like 5000 can return a 403 in the browser (cause unclear — the port
   may be blocked/reserved).
 - Switching to a different port (e.g. 2000) fixes it.
+
+
+Day 2:  2026-08-02
+
+Prisma 7 + PostgreSQL setup
+1. Install — 4 packages only (pg and @types/pg ship inside the adapter):
+       npm install -D prisma
+       npm install @prisma/client @prisma/adapter-pg dotenv
+2. Initialize (creates prisma/schema.prisma + prisma.config.ts):
+       npx prisma init --datasource-provider postgresql
+3. Start Postgres in Docker, put the connection string in .env as DATABASE_URL.
+4. Define models in schema.prisma. Leave the datasource block URL-less.
+5. tsconfig.json — remove rootDir, add prisma.config.ts to include.
+6. Run the migration (migrates AND generates the client in one command):
+       npx prisma migrate dev --name init_users
+7. Add the Prisma singleton in src/config/db.ts (generated import + adapter).
+8. Import it anywhere:  import prisma from "./config/db"
+9. npx prisma studio to browse the DB in a GUI.
+
+Prisma 7 gotchas (all three cost me time today)
+- "@prisma/client" has NO PrismaClient export. The prisma-client generator
+  writes it to the output folder instead:
+      import { PrismaClient } from "../generated/prisma/client"
+- new PrismaClient() alone won't connect. v7 talks to Postgres through a
+  driver adapter:
+      const adapter = new PrismaPg({ connectionString });
+      const prisma  = new PrismaClient({ adapter });
+- The DB URL must live in prisma.config.ts. Putting url = env("DATABASE_URL")
+  in schema.prisma fails with error P1012 — no longer supported in v7.
+
+tsconfig: why rootDir had to go
+- prisma.config.ts sits at the project root, outside src/. Adding it to
+  include while rootDir is "./src" fails with TS6059 (file not under rootDir).
+- Without it in include, the editor doesn't see @types/node and flags
+  process as undefined.
+- Dropping rootDir fixes both, but the build output nests one level deeper:
+  entry point is now dist/src/server.js, NOT dist/server.js. Remember this
+  for the Dockerfile CMD (Day 28) and the cloud start command (Day 30).
+
+Other things learned
+- tsx does NOT type-check, it only strips types. Type errors only show up in
+  the editor or via npm run build. Run the build before committing.
+- npx tsx script.ts from the repo root fails if the file is src/script.ts —
+  ERR_MODULE_NOT_FOUND shows the exact path it tried. Read that path first.
+- Re-running a seed script that creates a hardcoded unique email throws
+  P2002 (unique constraint failed). Use prisma.user.upsert() to make seed
+  scripts re-runnable.
+- src/generated/ is gitignored, so after every fresh clone or npm install
+  run: npx prisma generate
